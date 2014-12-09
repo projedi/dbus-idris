@@ -1,0 +1,6 @@
+### https://raw.github.com/github/gitignore/master/Idris.gitignore
+
+*.ibc
+*.o
+
+
