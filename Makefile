@@ -1,4 +1,4 @@
-.PHONY: build check default install tests
+.PHONY: build check default install test
 
 default: build
 
@@ -11,5 +11,5 @@ build:
 install:
 	idris --install dbus.ipkg
 
-test: install
+test: build
 	idris --testpkg dbus-tests.ipkg

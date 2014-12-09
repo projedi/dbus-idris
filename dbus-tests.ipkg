@@ -5,6 +5,6 @@ modules
 
 sourcedir = tests
 
-opts = "-p dbus"
+opts = "-i src -p dbus"
 
 tests = xmlParserTests
