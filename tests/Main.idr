@@ -51,7 +51,7 @@ xmlParserTest fname xml = do
 
 xmlParserTests : IO ()
 xmlParserTests = do
-  xmlParserTest "xml/test1.xml"
+  xmlParserTest "xml/test1.xml" $ with List
     [ MkXMLNode "node" []
       [ MkXMLNode "interface" [("name", "org.freedesktop.DBus")]
         [ MkXMLNode "method" [("name", "Hello")]
@@ -141,7 +141,7 @@ xmlParserTests = do
         ]
       ]
     ]
-  xmlParserTest "xml/test2.xml"
+  xmlParserTest "xml/test2.xml" $ with List
     [ MkXMLNode "node" []
       [ MkXMLNode "interface" [("name", "org.freedesktop.DBus.Properties")]
         [ MkXMLNode "method" [("name", "Get")]
