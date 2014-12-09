@@ -1,0 +1,10 @@
+package dbus_tests
+
+modules
+   = Main
+
+sourcedir = tests
+
+opts = "-p dbus"
+
+tests = xmlParserTests

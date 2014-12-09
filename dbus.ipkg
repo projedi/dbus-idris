@@ -1,0 +1,8 @@
+package dbus
+
+modules
+   = Parser
+   , XML.Parser
+   , DBus.Types
+
+sourcedir = src
