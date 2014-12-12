@@ -4,32 +4,31 @@ import System
 
 import XML.Parser
 
--- TODO: The order of nodes must matter, properties - should not
-
 compareXMLNode : XMLNode -> XMLNode -> Either String ()
 compareXMLNode node1 node2 = do
   if nodeName node1 /= nodeName node2
      then Left $  "Name mismatch: "
                ++ showOneNode node1 ++ " vs " ++ showOneNode node2
-     else if not (compareProperties (nodeProperties node1) (nodeProperties node2))
-             then Left $  "Property mismatch: "
+     else if not (compareProperties (sort $ nodeProperties node1) (sort $ nodeProperties node2))
+             then Left $  "Properties mismatch: "
                        ++ showOneNode node1 ++ " vs " ++ showOneNode node2
              else compareChildren (nodeChildren node1) (nodeChildren node2)
- where compareProperties : List (String, String) -> List (String, String) -> Bool
-       compareProperties [] [] = True
-       compareProperties ((pn1, pv1) :: ps1) ((pn2, pv2) :: ps2) =
-         if pn1 == pn2 && pv1 == pv2
-            then compareProperties ps1 ps2
-            else False
-       compareProperties _ _ = False
-       compareChildren : XML -> XML -> Either String ()
-       compareChildren [] [] = return ()
-       compareChildren (c1 :: cs1) (c2 :: cs2) =
-         case compareXMLNode c1 c2 of
-              Left err =>
-                Left $ showOneNode node1 ++ " -> " ++ err
-              Right _ => compareChildren cs1 cs2
-       compareChildren _ _ = Left "Children count mismatch"
+ where
+   compareProperties : List (String, String) -> List (String, String) -> Bool
+   compareProperties [] [] = True
+   compareProperties ((pn1, pv1) :: ps1) ((pn2, pv2) :: ps2) =
+     if pn1 == pn2 && pv1 == pv2
+        then compareProperties ps1 ps2
+        else False
+   compareProperties _ _ = False
+   compareChildren : XML -> XML -> Either String ()
+   compareChildren [] [] = return ()
+   compareChildren (c1 :: cs1) (c2 :: cs2) =
+     case compareXMLNode c1 c2 of
+          Left err =>
+            Left $ showOneNode node1 ++ " -> " ++ err
+          Right _ => compareChildren cs1 cs2
+   compareChildren _ _ = Left "Children count mismatch"
 
 compareXML : XML -> XML -> Either String ()
 compareXML [] [] = return ()
