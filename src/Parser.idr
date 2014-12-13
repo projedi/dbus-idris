@@ -104,3 +104,7 @@ alphaNum = alpha <|> digit
 
 optional : Parser a -> Parser (Maybe a)
 optional p = [| Just p |] <|> [| Nothing |]
+
+choice : (Alternative f) => List (f a) -> f a
+choice [] = empty
+choice (p :: ps) = p <|> choice ps
