@@ -4,5 +4,6 @@ modules
    = Parser
    , XML.Parser
    , DBus.Types
+   , XML
 
 sourcedir = src

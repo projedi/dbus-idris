@@ -1,71 +1,16 @@
 module XML.Parser
 
 import Parser
-
-%access private
-
-public record XMLNode : Type where
-  MkXMLNode
-    :  (nodeName : String)
-    -> (nodeProperties : List (String, String))
-    -> (nodeChildren : List XMLNode)
-    -> XMLNode
-
-ppProperties : List (String, String) -> String
-ppProperties [] = ""
-ppProperties ((pname, pval) :: ps) =
-  " " ++ pname ++ " = \"" ++ pval ++ "\"" ++ ppProperties ps
-
-unlines : List String -> String
-unlines [] = ""
-unlines (x :: xs) = x ++ "\n" ++ unlines xs
-
-public showOneNode : XMLNode -> String
-showOneNode node =  "<" ++ nodeName node
-                 ++ ppProperties (nodeProperties node)
-                 ++ ">"
-
-ppXML : String -> XMLNode -> String
-ppXML strPrefix node =  strPrefix ++ showOneNode node ++ "\n"
-                     ++ unlines (map (ppXML ("   " ++ strPrefix)) (nodeChildren node))
-                     ++ strPrefix ++ "</" ++ nodeName node ++ ">"
-
-instance Show XMLNode where
-  show = ppXML ""
-
-public XML : Type
-XML = List XMLNode
-
-public Value : Type
-
-public record ProcessingInstruction : Type where
-  MkProcessingInstruction
-    :  (processingInstructionTarget : String
-    -> (processingInstructionData : Maybe String)
-    -> ProcessingInstruction
-
-public record Prolog : Type where
-  MkProlog
-    :  (prologVersion : Maybe Version)
-    -> (prologEncoding : Maybe Encoding)
-    -> (prologSD : Maybe SD)
-    -> (prologDoctypeDecl : Maybe Doctype)
-    -> (prologProcessingInstructions : List ProcessingInstruction)
-    -> Prolog
-
-public Doctype : Type
-
-public Version : Type
-Version = String
-
-public Encoding : Type
-
-public SD : Type
+import XML
 
 -- From: http://www.w3.org/TR/2008/REC-xml-20081126/
 
 document : Parser XML
-document = prolog $> element $> many misc
+document = do
+  p <- prolog
+  root <- element
+  rest <- many misc
+  ?document_rhs
 
 char' : Parser Char
 char' = choice
@@ -146,12 +91,6 @@ systemLiteral = choice
   , char ''' $> many (noneOf [''']) <$ char '''
   ]
 
-pubidLiteral : Parser String
-pubidLiteral = pure pack $ choice
-  [ char '"' $> many pubidChar <$ char '"'
-  , char ''' $> many (pubidChar `excluding` char ''') <$ char '''
-  ]
-
 pubidChar : Parser Char
 pubidChar = choice
   [ char '\x20'
@@ -161,6 +100,12 @@ pubidChar = choice
   , oneOf ['A'..'Z']
   , oneOf ['0'..'9']
   , oneOf ['-', ''', '(', ')', '+', ',', '.', '/', ':', '=', '?', ';', '!', '*', '#', '@', '$', '_', '%']
+  ]
+
+pubidLiteral : Parser String
+pubidLiteral = pure pack $ choice
+  [ char '"' $> many pubidChar <$ char '"'
+  , char ''' $> many (pubidChar `excluding` char ''') <$ char '''
   ]
 
 charData : Parser String
@@ -177,19 +122,18 @@ comment =  pure pack $ string "<!--" $> go <$ string "-->"
             else [| pure c :: go |]
 
 pI : Parser ProcessingInstruction
-pI =
-  [| (\ _ target data_ _ => MkProcessingInstruction target data_)
-     (string "<?")
-     pITarget
-     optional (s $> (many char' `excluding` (many char' $> "?>" $> many char')))
-     string "?>"
-  |]
+pI = do
+  string "<?"
+  target <- pITarget
+  data_ <- optional (s $> (many char' `excluding` (many char' $> "?>" $> many char')))
+  string "?>"
+  pure $ MkProcessingInstruction
+    { target = target
+    , data_ = data_
+    }
 
 pITarget : Parser String
-pITarget = name `excluding` (anyOf ['x', 'X'] $> anyOf ['m', 'M'] $> anyOf ['l', 'L'])
-
-cDSect : Parser String
-cDSect = cDStart $> cData <$ cDEnd
+pITarget = name `excluding` (oneOf ['x', 'X'] $> oneOf ['m', 'M'] $> oneOf ['l', 'L'])
 
 cDStart : Parser String
 cDStart = string "<![CDATA["
@@ -200,18 +144,32 @@ cData = many char' `excluding` (many char' $> "]]>" $> many char')
 cDEnd : Parser String
 cDEnd = string "]]>"
 
+cDSect : Parser String
+cDSect = cDStart $> cData <$ cDEnd
+
+public record Prolog : Type where
+  MkProlog
+    :  (version : Maybe Version)
+    -> (encoding : Maybe Encoding)
+    -> (sd : Maybe SD)
+    -> (doctype : Maybe Doctype)
+    -> (processingInstructions : List ProcessingInstruction)
+    -> Prolog
+
 prolog : Parser Prolog
 prolog = do
-  d <- optional xMLDecl
-  pIs1 <- [| catMaybes (many misc) |]
-  dtype <- optional doctypedecl
-  pIs2 <- [| catMaybes (many misc) |]
+  d1 <- optional xMLDecl
+  m1 <- many misc
+  d2 <- optional [| (doctypedecl, many misc) |]
   pure $ MkProlog
-    { prologVersion = d >>= (\(v, _, _) => pure v)
-    , prologEncoding = d >>= (\(_, e, _) => e)
-    , prologSD = d >>= (\(_, _, s) => s)
-    , prologDoctypeDecl = dtype
-    , prologProcessingInstructions = pIs1 ++ pIs2
+    { version = d1 >>= (\(v, _, _) => pure v)
+    , encoding = d1 >>= (\(_, e, _) => pure e)
+    , sd = d1 >>= (\(_, _, s) => pure s)
+    , doctype = d2 >>= (\(d, _) => pure d)
+    , processingInstructions =
+        case d2 of
+             Nothing => catMaybes m1
+             Just (_, m2) => catMaybes m1 ++ catMaybes m2
     }
 
 xMLDecl : Parser (Version, Encoding, SD)
@@ -232,7 +190,7 @@ eq : Parser ()
 eq = optional s $> string '=' $> optional s $> pure ()
 
 versionNum : Parser Version
-versionNum = [| string "1." ++ many1 (anyOf ['0'..'9']) |]
+versionNum = [| string "1." ++ pure pack (many1 (oneOf ['0'..'9'])) |]
 
 misc : Parser (Maybe ProcessingInstruction)
 misc = choice
@@ -241,6 +199,8 @@ misc = choice
   , s $> pure Nothing
   ]
 
+-- Validity: Name must match the name of root element
+-- Validity: 
 doctypedecl : Parser Doctype
 doctypedecl = do
   string "<!DOCTYPE"
@@ -266,6 +226,15 @@ intSubset = choice
             Just r => ((Left r) ::) <$> intSubset
             Nothing => intSubset
   ]
+
+markupdecl : Parser Markup
+markupdecl = elementdecl <|> attlistDecl <|> entityDecl <|> notationDecl <|> pI <|> comment
+
+extSubset : Parser ExternalSubset
+
+extSubsetDecl : Parser ?
+
+sdDecl
 
 public parseXML : String -> Maybe XML
 parseXML = parse (document $> eof)
