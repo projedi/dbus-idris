@@ -2,8 +2,9 @@ package dbus
 
 modules
    = Parser
-   , XML.Parser
-   , DBus.Types
    , XML
+   , XML.Parser
+   , XML.Printer
+   , DBus.Types
 
 sourcedir = src

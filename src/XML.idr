@@ -1,59 +1,156 @@
 module XML
 
-%access private
+%access public
 
-public record XMLNode : Type where
-  MkXMLNode
-    :  (nodeName : String)
-    -> (nodeProperties : List (String, String))
-    -> (nodeChildren : List XMLNode)
-    -> XMLNode
+-- TODO: Be more efficient
+Map : Type -> Type -> Type
+Map k v = List (k, v)
 
-ppProperties : List (String, String) -> String
-ppProperties [] = ""
-ppProperties ((pname, pval) :: ps) =
-  " " ++ pname ++ " = \"" ++ pval ++ "\"" ++ ppProperties ps
-
-unlines : List String -> String
-unlines [] = ""
-unlines (x :: xs) = x ++ "\n" ++ unlines xs
-
-public showOneNode : XMLNode -> String
-showOneNode node =  "<" ++ nodeName node
-                 ++ ppProperties (nodeProperties node)
-                 ++ ">"
-
-ppXML : String -> XMLNode -> String
-ppXML strPrefix node =  strPrefix ++ showOneNode node ++ "\n"
-                     ++ unlines (map (ppXML ("   " ++ strPrefix)) (nodeChildren node))
-                     ++ strPrefix ++ "</" ++ nodeName node ++ ">"
-
-instance Show XMLNode where
-  show = ppXML ""
-
-public record XML : Type where
-  MkXML
-    :  (version : Maybe Version)
-    -> (encoding : Maybe Encoding)
-    -> (sd : Maybe SD)
-    -> (doctype : Maybe Doctype)
-    -> (processingInstructions : List ProcessingInstruction)
-    -> (root : XMLNode)
-    -> XML
-
-public Value : Type
-
-public record ProcessingInstruction : Type where
+record ProcessingInstruction : Type where
   MkProcessingInstruction
-    :  (target : String
+    :  (target : String)
     -> (data_ : Maybe String)
     -> ProcessingInstruction
 
-public Doctype : Type
+data Reference
+  = ReferenceChar Char
+  | ReferenceEntity String
 
-public Version : Type
+StringWithRefs : Type
+StringWithRefs = List (Either String Reference)
+
+mutual
+  record XMLElement : Type where
+    MkXMLElement
+      :  (name : String)
+      -> (attributes : Map String StringWithRefs)
+      -> (content : List Content)
+      -> XMLElement
+
+  data Content
+    = ContentString StringWithRefs
+    | ContentProcessingInstruction ProcessingInstruction
+    | ContentElement XMLElement
+
+data ExternalID
+  = ExternalIDSystem String
+  | ExternalIDPublic String String
+
+ParameterEntityReference : Type
+ParameterEntityReference = String
+
+data RepeatSpec
+  = RepeatSpecOne
+  | RepeatSpecZeroOrOne
+  | RepeatSpecZeroOrMore
+  | RepeatSpecOneOrMore
+
+data ChildrenSpec
+  = ChildrenSpecName String RepeatSpec
+  | ChildrenSpecChoice (List ChildrenSpec) RepeatSpec
+  | ChildrenSpecSeq (List ChildrenSpec) RepeatSpec
+
+data ContentSpec
+  = ContentSpecEmpty
+  | ContentSpecAny
+  | ContentSpecMixed (List String)
+  | ContentSpecChildren ChildrenSpec
+
+record ElementDecl : Type where
+  MkElementDecl
+    :  (name : String)
+    -> (content : ContentSpec)
+    -> ElementDecl
+
+data DefaultDecl
+  = DefaultDeclRequired
+  | DefaultDeclImplied
+  | DefaultDeclFixed StringWithRefs
+
+data TokenizedType
+  = TokenizedTypeID
+  | TokenizedTypeIDREF
+  | TokenizedTypeIDREFS
+  | TokenizedTypeENTITY
+  | TokenizedTypeENTITIES
+  | TokenizedTypeNMTOKEN
+  | TokenizedTypeNMTOKENS
+
+data EnumeratedType
+  = EnumeratedTypeNotation (List String)
+  | EnumeratedTypeEnumeration (List String)
+
+data AttType
+  = AttTypeString
+  | AttTypeTokenized TokenizedType
+  | AttTypeEnumerated EnumeratedType
+
+record AttDef : Type where
+  MkAttDef
+    :  (name : String)
+    -> (type : AttType)
+    -> (default : DefaultDecl)
+    -> AttDef
+
+record AttlistDecl : Type where
+  MkAttlistDecl
+    :  (name : String)
+    -> (definitions : List AttDef)
+    -> AttlistDecl
+
+record GEntityDecl : Type where
+  MkGEntityDecl
+    :  (name : String)
+    -> (definition : Either StringWithRefs (ExternalID, Maybe String))
+    -> GEntityDecl
+
+record PEntityDecl : Type where
+  MkPEntityDecl
+    :  (name : String)
+    -> (definition : Either StringWithRefs ExternalID)
+    -> PEntityDecl
+
+data EntityDecl
+  = EntityDeclG GEntityDecl
+  | EntityDeclP PEntityDecl
+
+PublicID : Type
+PublicID = String
+
+record NotationDecl : Type where
+  MkNotationDecl
+    :  (name : String)
+    -> (identifier : Either ExternalID PublicID)
+    -> NotationDecl
+
+data MarkupDecl
+  = MarkupElementDecl ElementDecl
+  | MarkupAttlistDecl AttlistDecl
+  | MarkupEntityDecl EntityDecl
+  | MarkupNotationDecl NotationDecl
+  | MarkupProcessingInstruction ProcessingInstruction
+
+record DocumentType : Type where
+  MkDocumentType
+    :  (name : String)
+    -> (externalId : Maybe ExternalID)
+    -> (internalSubset : Maybe (List (Either MarkupDecl ParameterEntityReference)))
+    -> DocumentType
+
+Version : Type
 Version = String
 
-public Encoding : Type
+Encoding : Type
+Encoding = String
 
-public SD : Type
+record XML : Type where
+  MkXML
+    :  (version : Maybe Version)
+    -> (encoding : Maybe Encoding)
+    -> (isStandalone : Maybe Bool)
+    -> (instructions1 : List ProcessingInstruction)
+    -> (documentType : Maybe DocumentType)
+    -> (instructions2 : List ProcessingInstruction)
+    -> (root : XMLElement)
+    -> (instructions3 : List ProcessingInstruction)
+    -> XML
